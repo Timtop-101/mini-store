@@ -76,7 +76,30 @@ if(endpoint){try{toast('ИИ анализирует фотографию…');co
  }
  toast('Надпись не распознана или не определён цвет. Проверяем сохранённые фотографии.');
 }catch(e){toast('Чтение надписей недоступно: '+e.message+'. Проверяем сохранённые образцы.')}
-if(samples.length===0){$('scanResult').classList.add('hidden');toast('Не удалось определить модель по надписи. Попробуй сфотографировать бок коробки с названием или добавь свои фотографии в «Обучение».');return}const f=features(c);let scores=samples.map(s=>({id:s.id,score:Math.sqrt(f.reduce((sum,v,i)=>{let delta=v-s.f[i];return sum+delta*delta},0)/f.length)})).sort((a,b)=>a.score-b.score);const closest=scores[0],other=scores.find(s=>s.id!==closest.id);lastMatch=closest.id;let p=product(lastMatch);$('matchName').textContent=p.name;$('matchPrice').textContent=fmt(p.price);$('confidence').textContent=(closest.score>.55||(other&&other.score-closest.score<.055))?'⚠️ Неуверенное совпадение — проверь модель':'Возможное совпадение — проверь модель';$('scanResult').classList.remove('hidden');toast('Сравнили фото с '+samples.length+' образцами. Это приблизительное распознавание.')}
+if(samples.length===0){
+ lastMatch=null;$('scanResult').classList.add('hidden');
+ toast('Не удалось узнать модель по верхней картинке: нет фотографий настоящих коробок. Добавь фото в «Обучение» или выбери модель вручную.');
+ return;
+}
+const f=features(c);
+const scores=samples.filter(s=>product(s.id)&&Array.isArray(s.f)&&s.f.length===f.length)
+ .map(s=>({id:s.id,score:Math.sqrt(f.reduce((sum,v,i)=>{const d=v-s.f[i];return sum+d*d},0)/f.length)}))
+ .sort((a,b)=>a.score-b.score);
+if(!scores.length){lastMatch=null;$('scanResult').classList.add('hidden');toast('Сохранённые фотографии повреждены. Добавь новые фото коробок.');return;}
+const byId=[];for(const item of scores)if(!byId.some(x=>x.id===item.id))byId.push(item);
+const best=byId[0],runnerUp=byId[1];
+const confident=best.score<0.25&&(!runnerUp||runnerUp.score-best.score>0.09);
+if(!confident){
+ lastMatch=null;$('scanResult').classList.add('hidden');
+ const top=byId.slice(0,3).map(x=>product(x.id).name).join(', ');
+ toast('⚠️ Нет надёжного совпадения. Возможные модели: '+top+'. Не буду подставлять случайную цену. Добавь фото верхней стороны коробки в «Обучение» или выбери вручную.');
+ return;
+}
+lastMatch=best.id;const p=product(best.id);
+$('matchName').textContent=p.name;$('matchPrice').textContent=fmt(p.price);
+$('confidence').textContent='📷 Совпало с сохранённым образцом. Проверь модель перед оплатой.';
+$('scanResult').classList.remove('hidden');
+toast('Нашли похожую коробку среди '+samples.length+' сохранённых фото.');}
 $('snap').onclick=async()=>{if(!$('video').videoWidth)return;let c=document.createElement('canvas');c.width=$('video').videoWidth;c.height=$('video').videoHeight;c.getContext('2d').drawImage($('video'),0,0);imageMatch(c)};$('uploadScan').onclick=()=>$('scanFile').click();$('scanFile').onchange=async e=>{let f=e.target.files?.[0];if(f){try{imageMatch(await canvasFromFile(f))}catch(err){toast(err.message)}}e.target.value=''};$('addMatch').onclick=()=>{if(lastMatch!=null)add(lastMatch)};$('otherMatch').onclick=()=>tab('catalog');
 products.forEach(p=>{let opt=document.createElement('option');opt.value=p.id;opt.textContent=p.name;$('learnSelect').append(opt)});$('learnButton').onclick=()=>$('learnFile').click();$('learnFile').onchange=async e=>{let f=e.target.files?.[0];if(f){try{let c=await canvasFromFile(f);let id=Number($('learnSelect').value);samples.push({id,f:features(c)});if(!save('miniSamples',samples)){samples.pop();$('learnNote').textContent='Хранилище устройства заполнено.'}else{$('learnNote').textContent='Фото для '+product(id).name+' добавлено ✓'}renderTrained()}catch(err){$('learnNote').textContent=err.message}}e.target.value=''};function renderTrained(){let el=$('trained');el.replaceChildren();let title=document.createElement('strong');title.textContent='Сохранённые образцы: '+samples.length;el.append(title);products.forEach(p=>{let n=samples.filter(s=>s.id===p.id).length;if(!n)return;let div=document.createElement('div');div.className='row item';let name=document.createElement('span');name.textContent=p.name+' — '+n+' фото';let btn=document.createElement('button');btn.className='btn secondary';btn.textContent='Удалить';btn.onclick=()=>{samples=samples.filter(s=>s.id!==p.id);save('miniSamples',samples);renderTrained()};div.append(name,btn);el.append(div)})}$('resetTraining').onclick=()=>{if(confirm('Удалить все обучающие образцы?')){samples=[];save('miniSamples',samples);renderTrained()}};renderCatalog();renderCart();renderTrained();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 
