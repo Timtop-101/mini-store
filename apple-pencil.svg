@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 700">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f7f8fb"/><stop offset="100%" stop-color="#dde2ee"/></linearGradient>
+      <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.42"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0.08"/></linearGradient>
+      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0a0d15" flood-opacity="0.35"/></filter>
+    </defs>
+    <rect width="700" height="700" rx="80" fill="#0f1118"/>
+    <rect x="28" y="28" width="644" height="644" rx="60" fill="url(#bg)"/>
+    <circle cx="582" cy="118" r="132" fill="#ffffff" fill-opacity="0.10"/>
+    <circle cx="112" cy="576" r="110" fill="#ffffff" fill-opacity="0.09"/>
+    <g filter="url(#shadow)">
+        <g transform="translate(128,132) rotate(-22 220 220)">
+          <rect x="80" y="190" width="420" height="36" rx="18" fill="#fafbfd"/>
+          <rect x="88" y="196" width="382" height="24" rx="12" fill="#e9eef6"/>
+          <polygon points="500,190 552,208 500,226" fill="#f0f3f8"/>
+          <polygon points="552,208 572,208 555,220" fill="#d3dae8"/>
+          <rect x="78" y="190" width="40" height="36" rx="14" fill="#d8e0ee"/>
+        </g></g>
+    <rect x="54" y="500" width="592" height="128" rx="30" fill="#11161f" fill-opacity="0.62"/>
+    <text x="80" y="552" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="34" font-weight="700" fill="#fff">Apple Pencil</text>
+    <text x="80" y="596" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="26" fill="#eef2ff">20 000 ₽</text>
+    <text x="560" y="593" text-anchor="end" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="700" fill="#f8fbff">Mini Store</text>
+    </svg>

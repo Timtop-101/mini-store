@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 700">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#eceef3"/><stop offset="100%" stop-color="#cfd7e5"/></linearGradient>
+      <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.42"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0.08"/></linearGradient>
+      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0a0d15" flood-opacity="0.35"/></filter>
+    </defs>
+    <rect width="700" height="700" rx="80" fill="#0f1118"/>
+    <rect x="28" y="28" width="644" height="644" rx="60" fill="url(#bg)"/>
+    <circle cx="582" cy="118" r="132" fill="#ffffff" fill-opacity="0.10"/>
+    <circle cx="112" cy="576" r="110" fill="#ffffff" fill-opacity="0.09"/>
+    <g filter="url(#shadow)">
+        <g transform="translate(175,140)">
+          <rect x="160" y="70" width="212" height="258" rx="42" fill="#fbfbfd"/>
+          <rect x="176" y="86" width="180" height="226" rx="31" fill="#eef3fa"/>
+          <rect x="218" y="12" width="18" height="82" rx="8" fill="#f9fbff"/>
+          <rect x="296" y="12" width="18" height="82" rx="8" fill="#f9fbff"/>
+          <rect x="190" y="136" width="154" height="110" rx="26" fill="url(#glass)"/>
+          <path d="M250 145l-35 68h33l-15 52 54-82h-34l14-38z" fill="#b5c0d7"/>
+        </g></g>
+    <rect x="54" y="500" width="592" height="128" rx="30" fill="#11161f" fill-opacity="0.62"/>
+    <text x="80" y="552" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="34" font-weight="700" fill="#fff">Power Adapter</text>
+    <text x="80" y="596" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="26" fill="#eef2ff">3 000 ₽</text>
+    <text x="560" y="593" text-anchor="end" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="700" fill="#f8fbff">Mini Store</text>
+    </svg>

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 700">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#676b72"/><stop offset="100%" stop-color="#b4bac3"/></linearGradient>
+      <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.42"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0.08"/></linearGradient>
+      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0a0d15" flood-opacity="0.35"/></filter>
+    </defs>
+    <rect width="700" height="700" rx="80" fill="#0f1118"/>
+    <rect x="28" y="28" width="644" height="644" rx="60" fill="url(#bg)"/>
+    <circle cx="582" cy="118" r="132" fill="#ffffff" fill-opacity="0.10"/>
+    <circle cx="112" cy="576" r="110" fill="#ffffff" fill-opacity="0.09"/>
+    <g filter="url(#shadow)">
+        <g transform="translate(148,92) rotate(-10 200 210)">
+          <rect x="158" y="28" width="242" height="448" rx="54" fill="#1b1d23"/>
+          <rect x="172" y="42" width="214" height="420" rx="43" fill="#0d0f16"/>
+          <rect x="182" y="52" width="194" height="399" rx="36" fill="url(#glass)"/>
+          <rect x="222" y="67" width="112" height="24" rx="12" fill="#151720"/>
+        </g>
+        <g transform="translate(120,120)">
+          <rect x="116" y="10" width="242" height="448" rx="54" fill="#f7f8fb" fill-opacity="0.94"/>
+          <rect x="128" y="24" width="218" height="420" rx="42" fill="#d9e2f0" fill-opacity="0.28"/>
+          <circle cx="168" cy="76" r="26" fill="#0d0f16"/><circle cx="230" cy="76" r="26" fill="#0d0f16"/><circle cx="199" cy="118" r="22" fill="#0d0f16"/>
+          <circle cx="168" cy="76" r="12" fill="#8793aa"/><circle cx="230" cy="76" r="12" fill="#8793aa"/><circle cx="199" cy="118" r="9" fill="#8793aa"/>
+          <circle cx="306" cy="66" r="9" fill="#cfd6e2"/>
+          <rect x="140" y="162" width="194" height="262" rx="32" fill="url(#glass)"/>
+        </g></g>
+    <rect x="54" y="500" width="592" height="128" rx="30" fill="#11161f" fill-opacity="0.62"/>
+    <text x="80" y="552" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="34" font-weight="700" fill="#fff">iPhone XS Max</text>
+    <text x="80" y="596" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="26" fill="#eef2ff">10 000 ₽</text>
+    <text x="560" y="593" text-anchor="end" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="700" fill="#f8fbff">Mini Store</text>
+    </svg>
