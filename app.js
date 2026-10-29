@@ -10,8 +10,73 @@ function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=
 // Fixed 16x16 grayscale layout + colored 4x4 grid. Uses simple normalized features; not semantic AI.
 function features(canvas){const c=document.createElement('canvas');c.width=32;c.height=32;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(canvas,0,0,32,32);let d=x.getImageData(0,0,32,32).data,g=[],rgb=[];for(let i=0;i<d.length;i+=4){g.push(.299*d[i]+.587*d[i+1]+.114*d[i+2]);rgb.push([d[i],d[i+1],d[i+2]])}let mean=g.reduce((a,b)=>a+b,0)/g.length,sd=Math.sqrt(g.reduce((a,b)=>a+(b-mean)**2,0)/g.length)||1;let feat=[];for(let y=0;y<16;y++)for(let xx=0;xx<16;xx++){let k=(y*2)*32+xx*2;feat.push((g[k]+g[k+1]+g[k+32]+g[k+33]-4*mean)/(4*sd))}for(let y=0;y<4;y++)for(let xx=0;xx<4;xx++){let sums=[0,0,0];for(let dy=0;dy<8;dy++)for(let dx=0;dx<8;dx++){let p=rgb[(y*8+dy)*32+xx*8+dx];p.forEach((v,i)=>sums[i]+=v)}sums.forEach(v=>feat.push(v/(64*255)))}return feat};
 async function canvasFromFile(file){return new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{const c=document.createElement('canvas');const m=640,scale=Math.min(1,m/Math.max(img.naturalWidth,img.naturalHeight));c.width=Math.max(1,Math.round(img.naturalWidth*scale));c.height=Math.max(1,Math.round(img.naturalHeight*scale));c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);resolve(c)};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Не удалось открыть фото'))};img.src=url})};
+
+// Built-in price list is the reference catalog. Read printed text from a box
+// with an on-device OCR library (downloaded on first use), then match model.
+// Product drawings in the catalog are illustrations, NOT real box training data.
+let ocrLoader=null;
+function loadOCR(){
+  if(window.Tesseract)return Promise.resolve(window.Tesseract);
+  if(ocrLoader)return ocrLoader;
+  ocrLoader=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    script.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(Error('Модуль чтения текста недоступен'));
+    script.onerror=()=>reject(Error('Не удалось загрузить модуль чтения текста'));
+    document.head.appendChild(script);
+  }).catch(e=>{ocrLoader=null;throw e});
+  return ocrLoader;
+}
+function productFromBoxText(raw){
+ const t=raw.toLowerCase().replace(/[^a-z0-9а-яё]+/g,' ').replace(/\s+/g,' ').trim();
+ const has=(re)=>re.test(t);
+ if(has(/air\s*pods|аирподс|эйрподс/))return has(/\bpro\b|про/)?10:9;
+ if(has(/mac\s*book|макбук/))return 14;
+ if(has(/watch|вотч/))return 12;
+ if(has(/pencil|карандаш/))return 16;
+ if(has(/adapter|адаптер/))return 11;
+ if(has(/ipad|айпад/))return has(/\bair\b|эйр/)?13:15;
+ if(!has(/iphone|айфон|iph0ne/))return null;
+ if(has(/\b17\b/)){
+   if(has(/orange|оранж/))return 1;
+   if(has(/blue|син|голуб/))return 0;
+   return null; // two models have different prices
+ }
+ if(has(/\b15\b/))return 2;
+ if(has(/\b14\b/))return 3;
+ if(has(/\b13\b/)){
+   if(has(/pink|розов/))return 5;
+   if(has(/blue|син|голуб/))return 4;
+   return null;
+ }
+ if(has(/\b12\b/))return 7;
+ if(has(/\bxs\b|\bx\s*s\b/))return 6;
+ if(has(/\b5\b/))return 8;
+ return null;
+}
+async function recognizePrintedText(canvas){
+ const t=await loadOCR();
+ const result=await t.recognize(canvas,'eng');
+ return result?.data?.text||'';
+}
+
 async function imageMatch(c){
-if(endpoint){try{toast('ИИ анализирует фотографию…');const data=await cloudRequest({mode:'vision',imageDataUrl:c.toDataURL('image/jpeg',0.72),products:products.map(p=>({id:p.id,name:p.name,price:p.price}))});if(Number.isInteger(data.productId)&&product(data.productId)){lastMatch=data.productId;let p=product(lastMatch);$('matchName').textContent=p.name;$('matchPrice').textContent=fmt(p.price);$('confidence').textContent='🤖 ИИ: '+(data.explanation||'Предположительное распознавание')+' — проверь коробку';$('scanResult').classList.remove('hidden');toast('Результат ИИ. Проверь модель перед покупкой.');return}toast('ИИ не смог определить модель. Попробуем по образцам.')}catch(e){toast('Не удалось связаться с ИИ: '+e.message+'. Проверяем по образцам.')}}if(samples.length===0){$('scanResult').classList.add('hidden');toast('Нет обучающих фотографий. Перейди в «Обучение» и добавь фото коробок.');return}const f=features(c);let scores=samples.map(s=>({id:s.id,score:Math.sqrt(f.reduce((sum,v,i)=>{let delta=v-s.f[i];return sum+delta*delta},0)/f.length)})).sort((a,b)=>a.score-b.score);const closest=scores[0],other=scores.find(s=>s.id!==closest.id);lastMatch=closest.id;let p=product(lastMatch);$('matchName').textContent=p.name;$('matchPrice').textContent=fmt(p.price);$('confidence').textContent=(closest.score>.55||(other&&other.score-closest.score<.055))?'⚠️ Неуверенное совпадение — проверь модель':'Возможное совпадение — проверь модель';$('scanResult').classList.remove('hidden');toast('Сравнили фото с '+samples.length+' образцами. Это приблизительное распознавание.')}
+if(endpoint){try{toast('ИИ анализирует фотографию…');const data=await cloudRequest({mode:'vision',imageDataUrl:c.toDataURL('image/jpeg',0.72),products:products.map(p=>({id:p.id,name:p.name,price:p.price}))});if(Number.isInteger(data.productId)&&product(data.productId)){lastMatch=data.productId;let p=product(lastMatch);$('matchName').textContent=p.name;$('matchPrice').textContent=fmt(p.price);$('confidence').textContent='🤖 ИИ: '+(data.explanation||'Предположительное распознавание')+' — проверь коробку';$('scanResult').classList.remove('hidden');toast('Результат ИИ. Проверь модель перед покупкой.');return}toast('ИИ не смог определить модель. Попробуем по образцам.')}catch(e){toast('Не удалось связаться с ИИ: '+e.message+'. Проверяем по образцам.')}}try{
+ toast('Считываем надписи на коробке… Первый запуск требует интернета.');
+ const printed=await recognizePrintedText(c);
+ const id=productFromBoxText(printed);
+ if(id!==null){
+   lastMatch=id;const p=product(id);
+   $('matchName').textContent=p.name;
+   $('matchPrice').textContent=fmt(p.price);
+   $('confidence').textContent='📄 Модель определена по надписи на коробке. Обязательно проверь совпадение.';
+   $('scanResult').classList.remove('hidden');
+   toast('Найдена модель из прайс-листа. Проверь товар перед добавлением.');
+   return;
+ }
+ toast('Надпись не распознана или не определён цвет. Проверяем сохранённые фотографии.');
+}catch(e){toast('Чтение надписей недоступно: '+e.message+'. Проверяем сохранённые образцы.')}
+if(samples.length===0){$('scanResult').classList.add('hidden');toast('Не удалось определить модель по надписи. Попробуй сфотографировать бок коробки с названием или добавь свои фотографии в «Обучение».');return}const f=features(c);let scores=samples.map(s=>({id:s.id,score:Math.sqrt(f.reduce((sum,v,i)=>{let delta=v-s.f[i];return sum+delta*delta},0)/f.length)})).sort((a,b)=>a.score-b.score);const closest=scores[0],other=scores.find(s=>s.id!==closest.id);lastMatch=closest.id;let p=product(lastMatch);$('matchName').textContent=p.name;$('matchPrice').textContent=fmt(p.price);$('confidence').textContent=(closest.score>.55||(other&&other.score-closest.score<.055))?'⚠️ Неуверенное совпадение — проверь модель':'Возможное совпадение — проверь модель';$('scanResult').classList.remove('hidden');toast('Сравнили фото с '+samples.length+' образцами. Это приблизительное распознавание.')}
 $('snap').onclick=async()=>{if(!$('video').videoWidth)return;let c=document.createElement('canvas');c.width=$('video').videoWidth;c.height=$('video').videoHeight;c.getContext('2d').drawImage($('video'),0,0);imageMatch(c)};$('uploadScan').onclick=()=>$('scanFile').click();$('scanFile').onchange=async e=>{let f=e.target.files?.[0];if(f){try{imageMatch(await canvasFromFile(f))}catch(err){toast(err.message)}}e.target.value=''};$('addMatch').onclick=()=>{if(lastMatch!=null)add(lastMatch)};$('otherMatch').onclick=()=>tab('catalog');
 products.forEach(p=>{let opt=document.createElement('option');opt.value=p.id;opt.textContent=p.name;$('learnSelect').append(opt)});$('learnButton').onclick=()=>$('learnFile').click();$('learnFile').onchange=async e=>{let f=e.target.files?.[0];if(f){try{let c=await canvasFromFile(f);let id=Number($('learnSelect').value);samples.push({id,f:features(c)});if(!save('miniSamples',samples)){samples.pop();$('learnNote').textContent='Хранилище устройства заполнено.'}else{$('learnNote').textContent='Фото для '+product(id).name+' добавлено ✓'}renderTrained()}catch(err){$('learnNote').textContent=err.message}}e.target.value=''};function renderTrained(){let el=$('trained');el.replaceChildren();let title=document.createElement('strong');title.textContent='Сохранённые образцы: '+samples.length;el.append(title);products.forEach(p=>{let n=samples.filter(s=>s.id===p.id).length;if(!n)return;let div=document.createElement('div');div.className='row item';let name=document.createElement('span');name.textContent=p.name+' — '+n+' фото';let btn=document.createElement('button');btn.className='btn secondary';btn.textContent='Удалить';btn.onclick=()=>{samples=samples.filter(s=>s.id!==p.id);save('miniSamples',samples);renderTrained()};div.append(name,btn);el.append(div)})}$('resetTraining').onclick=()=>{if(confirm('Удалить все обучающие образцы?')){samples=[];save('miniSamples',samples);renderTrained()}};renderCatalog();renderCart();renderTrained();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 
