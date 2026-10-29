@@ -28,48 +28,59 @@ function loadOCR(){
   return ocrLoader;
 }
 function productFromBoxText(raw){
- const t=raw.toLowerCase().replace(/[^a-z0-9а-яё]+/g,' ').replace(/\s+/g,' ').trim();
- const has=(re)=>re.test(t);
- if(has(/air\s*pods|аирподс|эйрподс/))return has(/\bpro\b|про/)?10:9;
- if(has(/mac\s*book|макбук/))return 14;
- if(has(/watch|вотч/))return 12;
- if(has(/pencil|карандаш/))return 16;
- if(has(/adapter|адаптер/))return 11;
- if(has(/ipad|айпад/))return has(/\bair\b|эйр/)?13:15;
- if(!has(/iphone|айфон|iph0ne/))return null;
- if(has(/\b17\b/)){
-   if(has(/orange|оранж/))return 1;
-   if(has(/blue|син|голуб/))return 0;
-   return null; // two models have different prices
- }
- if(has(/\b15\b/))return 2;
- if(has(/\b14\b/))return 3;
- if(has(/\b13\b/)){
-   if(has(/pink|розов/))return 5;
-   if(has(/blue|син|голуб/))return 4;
+ const t=String(raw||'').toLowerCase().replace(/[^a-z0-9а-яё]+/g,' ').replace(/\s+/g,' ').trim();
+ const has=re=>re.test(t);
+ // Only match an adapter if the printed PRODUCT is an adapter. Labels on
+ // iPads/iPhones also mention a power adapter, so this must be last.
+ if(has(/\bipad\b|ip[a4]d|айпад/))return has(/\bair\b|эйр|a1r/)?13:15;
+ if(has(/\biphone\b|iph[o0]ne|айфон/)){
+   if(has(/\b17\b/))return has(/orange|оранж/)?1:has(/blue|син|голуб/)?0:null;
+   if(has(/\b15\b/))return 2;
+   if(has(/\b14\b/))return 3;
+   if(has(/\b13\b/))return has(/pink|розов/)?5:has(/blue|син|голуб/)?4:null;
+   if(has(/\b12\b/))return 7;
+   if(has(/\bxs\b|\bx\s*s\b/))return 6;
+   if(has(/\b5\b/))return 8;
    return null;
  }
- if(has(/\b12\b/))return 7;
- if(has(/\bxs\b|\bx\s*s\b/))return 6;
- if(has(/\b5\b/))return 8;
+ if(has(/air\s*pods|аирподс|эйрподс/))return has(/\bpro\b|про/)?10:9;
+ if(has(/mac\s*book|макбук/))return 14;
+ if(has(/apple\s*watch|watch\s*se|вотч/))return 12;
+ if(has(/apple\s*pencil|карандаш/))return 16;
+ if(has(/power\s*adapter|usb.c\s*power\s*adapter|адаптер\s*питан/))return 11;
  return null;
+}
+function rotatedCanvas(src,degrees){
+ const dst=document.createElement('canvas');const sideways=degrees%180!==0;
+ dst.width=sideways?src.height:src.width;dst.height=sideways?src.width:src.height;
+ const x=dst.getContext('2d');x.translate(dst.width/2,dst.height/2);
+ x.rotate(degrees*Math.PI/180);x.drawImage(src,-src.width/2,-src.height/2);
+ return dst;
 }
 async function recognizePrintedText(canvas){
  const t=await loadOCR();
- const result=await t.recognize(canvas,'eng');
- return result?.data?.text||'';
+ // Many box labels are printed sideways. Try four rotations, and stop when
+ // the catalog model is unambiguous. Never silently guess a color.
+ let best='';
+ for(const angle of [0,90,270,180]){
+   const c=angle?rotatedCanvas(canvas,angle):canvas;
+   const result=await t.recognize(c,'eng');
+   const value=result?.data?.text||'';
+   if(value.length>best.length)best=value;
+   if(productFromBoxText(value)!==null)return value;
+ }
+ return best;
 }
-
 async function imageMatch(c){
 if(endpoint){try{toast('ИИ анализирует фотографию…');const data=await cloudRequest({mode:'vision',imageDataUrl:c.toDataURL('image/jpeg',0.72),products:products.map(p=>({id:p.id,name:p.name,price:p.price}))});if(Number.isInteger(data.productId)&&product(data.productId)){lastMatch=data.productId;let p=product(lastMatch);$('matchName').textContent=p.name;$('matchPrice').textContent=fmt(p.price);$('confidence').textContent='🤖 ИИ: '+(data.explanation||'Предположительное распознавание')+' — проверь коробку';$('scanResult').classList.remove('hidden');toast('Результат ИИ. Проверь модель перед покупкой.');return}toast('ИИ не смог определить модель. Попробуем по образцам.')}catch(e){toast('Не удалось связаться с ИИ: '+e.message+'. Проверяем по образцам.')}}try{
- toast('Считываем надписи на коробке… Первый запуск требует интернета.');
+ toast('Читаем наклейку на задней стороне коробки (включая повёрнутый текст)… Первый запуск требует интернета.');
  const printed=await recognizePrintedText(c);
  const id=productFromBoxText(printed);
  if(id!==null){
    lastMatch=id;const p=product(id);
    $('matchName').textContent=p.name;
    $('matchPrice').textContent=fmt(p.price);
-   $('confidence').textContent='📄 Модель определена по надписи на коробке. Обязательно проверь совпадение.';
+   $('confidence').textContent='📄 Модель прочитана с наклейки коробки. Проверь совпадение.';
    $('scanResult').classList.remove('hidden');
    toast('Найдена модель из прайс-листа. Проверь товар перед добавлением.');
    return;
