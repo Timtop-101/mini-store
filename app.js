@@ -5,12 +5,65 @@ const extraProducts=["iPhone Duo","iPhone 18 Pro Max","iPhone 18 Pro","iPhone 17
 const extraIllustration=name=>/AirPods/i.test(name)?'airpods.svg':/Pencil/i.test(name)?'apple-pencil.svg':/Watch|Band/i.test(name)?'apple-watch-se.svg':/Cable|MagSafe|Adapter|Charger/i.test(name)?'power-adapter.svg':/Keyboard|Mouse|Trackpad/i.test(name)?'macbook-pro.svg':/AirTag|Case|Wallet|Folio|Loop/i.test(name)?'iphone-12.svg':'iphone-12.svg';
 for(const name of extraProducts)if(!products.some(p=>p.name.toLowerCase()===name.toLowerCase()))products.push({id:products.length,name,price:null,img:extraIllustration(name),hint:'Дополнительный товар · Иллюстрация условная · Цена не назначена'});
 const priceText=p=>p.price==null?'Цена не назначена':fmt(p.price);
+
+// Game prices (not Apple's official prices). Keep every item in 1,000–90,000 ₽.
+const excludedNames=new Set(['AirTag Loop','iPhone Duo','iPhone 18 Pro Max','iPhone 18 Pro','AirPods 5','AirPods Max 2']);
+for(let i=products.length-1;i>=0;i--)if(excludedNames.has(products[i].name))products.splice(i,1);
+// Stable IDs matter for saved carts and training, so do not renumber existing products.
+const allById=new Map(products.map(p=>[p.id,p]));
+function gamePrice(p){
+ if(p.price!=null)return Math.max(1000,Math.min(90000,p.price));
+ if(/^iPhone /i.test(p.name)){
+   const n=Number((p.name.match(/iPhone\s+(\d+)/i)||[])[1])||0;
+   const base=n>=17?78000:n>=16?68000:n>=15?54000:n>=14?40000:n>=13?29000:n>=12?22000:n>=11?17000:n>=8?12000:6000;
+   return Math.min(90000,base+(/Pro Max/i.test(p.name)?12000:/Pro/i.test(p.name)?8000:/Plus/i.test(p.name)?5000:0));
+ }
+ if(/AirPods Max/i.test(p.name))return 25000;
+ if(/AirPods Pro/i.test(p.name))return 13000;
+ if(/AirPods/i.test(p.name))return 7000;
+ if(/MacBook/i.test(p.name))return 80000;
+ if(/iPad/i.test(p.name))return 40000;
+ if(/Watch/i.test(p.name))return 15000;
+ return 3000;
+}
+products.forEach(p=>{p.price=gamePrice(p);if(p.hint?.includes('Цена не назначена'))p.hint='Игровая цена · Фото может отличаться от модели'});
+// Only show real Commons photos when the exact iPhone model is named in metadata.
+// Other products keep their existing illustrations until a verified photo exists.
+const photoLookupCache=new Map();
+async function realPhonePhoto(name){
+ if(photoLookupCache.has(name))return photoLookupCache.get(name);
+ const job=(async()=>{
+  const query=name.replace(/\s+(Blue|Orange|Pink)$/i,'');
+  const u=new URL('https://commons.wikimedia.org/w/api.php');
+  u.search=new URLSearchParams({action:'query',generator:'search',gsrsearch:'filetype:bitmap "'+query+'"',gsrnamespace:'6',gsrlimit:'10',prop:'imageinfo',iiprop:'url|mime',iiurlwidth:'500',format:'json',origin:'*'}).toString();
+  try{
+   const r=await fetch(u.toString());if(!r.ok)return null;
+   const data=await r.json();
+   const normalized=query.toLowerCase().replace(/[^a-z0-9]/g,'');
+   const page=Object.values(data.query?.pages||{}).find(p=>{
+    const title=p.title.toLowerCase().replace(/[^a-z0-9]/g,'');
+    const info=p.imageinfo?.[0];
+    return title.includes(normalized)&&info?.thumburl?.startsWith('https://')&&/^image\/(jpeg|png|webp)$/.test(info.mime);
+   });
+   return page?.imageinfo?.[0]?.thumburl||null;
+  }catch{return null}
+ })();
+ photoLookupCache.set(name,job);return job;
+}
+const phonePhotoObserver=('IntersectionObserver'in window)?new IntersectionObserver(entries=>{
+ for(const entry of entries)if(entry.isIntersecting){
+  phonePhotoObserver.unobserve(entry.target);
+  const img=entry.target;
+  realPhonePhoto(img.dataset.phone).then(src=>{if(src&&img.isConnected){img.onerror=()=>{img.onerror=null;img.src=img.dataset.fallback};img.src=src}});
+ }
+},{rootMargin:'350px'}):null;
+
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('ru-RU').format(n)+' ₽';
 const read=(k,def)=>{try{return JSON.parse(localStorage.getItem(k))??def}catch{return def}},save=(k,x)=>{try{localStorage.setItem(k,JSON.stringify(x));return true}catch{return false}};
-let cart=read('miniCart',{}),samples=read('miniSamples',[]),stream=null,lastMatch=null;const product=id=>products.find(p=>p.id===Number(id));
+let cart=read('miniCart',{}),samples=read('miniSamples',[]),stream=null,lastMatch=null;const product=id=>allById.get(Number(id));
 function tab(page){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.page===page));['scan','catalog','cart','learn','ai'].forEach(p=>$(p+'Page').classList.toggle('hidden',p!==page));if(page==='cart')renderCart();if(page==='learn')renderTrained();if(page==='ai')$('chatInput').focus();if(page!=='scan')stopCamera()};document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>tab(b.dataset.page));
 function add(id){if(!product(id)||product(id).price==null){toast('Сначала назначь цену этому товару.');return;}cart[id]=(cart[id]||0)+1;save('miniCart',cart);$('count').textContent='Корзина: '+Object.values(cart).reduce((a,b)=>a+b,0);renderCart();toast('Добавлено в корзину ✓')};function toast(t){$('scanMessage').textContent=t};
-function renderCatalog(){let query=$('search').value.toLowerCase().trim();$('products').replaceChildren(...products.filter(p=>p.name.toLowerCase().includes(query)).map(p=>{let el=document.createElement('div');el.className='product';let img=document.createElement('img');img.className='productImage';img.src=p.img;img.alt=p.name;img.loading='lazy';let title=document.createElement('h3');title.textContent=p.name;let note=document.createElement('small');note.textContent=p.hint||'Игровой товар';let row=document.createElement('div');row.className='row';let price=document.createElement('b');price.textContent=priceText(p);let btn=document.createElement('button');btn.textContent=p.price==null?'Нет цены':'+ Добавить';btn.disabled=p.price==null;btn.onclick=()=>add(p.id);row.append(price,btn);el.append(img,title,note,row);return el}))};$('search').oninput=renderCatalog;
+function renderCatalog(){let query=$('search').value.toLowerCase().trim();$('products').replaceChildren(...products.filter(p=>p.name.toLowerCase().includes(query)).map(p=>{let el=document.createElement('div');el.className='product';let img=document.createElement('img');img.className='productImage';img.src=p.img;img.alt=p.name;img.loading='lazy';if(p.name.startsWith('iPhone ')){img.dataset.phone=p.name;img.dataset.fallback=p.img;if(phonePhotoObserver)phonePhotoObserver.observe(img);else realPhonePhoto(p.name).then(src=>{if(src&&img.isConnected)img.src=src})}let title=document.createElement('h3');title.textContent=p.name;let note=document.createElement('small');note.textContent=p.hint||'Игровой товар';let row=document.createElement('div');row.className='row';let price=document.createElement('b');price.textContent=priceText(p);let btn=document.createElement('button');btn.textContent=p.price==null?'Нет цены':'+ Добавить';btn.disabled=p.price==null;btn.onclick=()=>add(p.id);row.append(price,btn);el.append(img,title,note,row);return el}))};$('search').oninput=renderCatalog;
 function total(){return Object.entries(cart).reduce((sum,[id,n])=>sum+(product(id)?.price||0)*n,0)}function renderCart(){let target=$('cartItems');target.replaceChildren();if(!Object.keys(cart).length){let p=document.createElement('p');p.textContent='Корзина пока пустая';target.append(p)}Object.entries(cart).forEach(([id,n])=>{let p=product(id),el=document.createElement('div');el.className='row item';let left=document.createElement('div');let name=document.createElement('strong');name.textContent=p.name;let price=document.createElement('div');price.className='hint';price.textContent=p.price==null?'Цена не назначена':fmt(p.price*n);left.append(name,price);let controls=document.createElement('div');controls.className='qty';let minus=document.createElement('button');minus.textContent='−';minus.onclick=()=>changeQty(id,-1);let count=document.createElement('span');count.textContent=n;let plus=document.createElement('button');plus.textContent='+';plus.onclick=()=>changeQty(id,1);controls.append(minus,count,plus);el.append(left,controls);target.append(el)});$('total').textContent=fmt(total());$('count').textContent='Корзина: '+Object.values(cart).reduce((a,b)=>a+b,0);renderChange()};function changeQty(id,n){cart[id]=(cart[id]||0)+n;if(cart[id]<=0)delete cart[id];save('miniCart',cart);renderCart()};function renderChange(){let paid=$('cash').value,t=total(),el=$('change');el.className='notice';if(paid===''){el.textContent='Введи сумму оплаты, чтобы посчитать сдачу.';return}let diff=Number(paid)-t;if(diff<0){el.textContent='Не хватает: '+fmt(-diff)}else{el.textContent='Сдача: '+fmt(diff);el.classList.add('success')}}$('cash').value=read('miniCash','');$('cash').oninput=()=>{save('miniCash',$('cash').value);renderChange()};$('clearCart').onclick=()=>{if(confirm('Очистить корзину?')){cart={};save('miniCart',cart);$('cash').value='';save('miniCash','');renderCart()}};$('checkout').onclick=()=>{if(!total())return alert('Сначала добавь товар');if($('cash').value===''||Number($('cash').value)<total())return alert('Введи достаточную сумму оплаты');alert('Покупка завершена! 🎉\nИтого: '+fmt(total())+'\nСдача: '+fmt(Number($('cash').value)-total()));cart={};save('miniCart',cart);$('cash').value='';save('miniCash','');renderCart()};
 function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;$('video').srcObject=null;$('snap').disabled=true;$('cameraPlaceholder').classList.remove('hidden')}}$('startCam').onclick=async()=>{try{stopCamera();stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280}}});$('video').srcObject=stream;$('cameraPlaceholder').classList.add('hidden');$('snap').disabled=false;toast('Наведи камеру на коробку и нажми «Распознать».')}catch(e){toast('Камера недоступна: открой приложение по HTTPS в Safari и разреши доступ. Можно выбрать фото из галереи.')}};
 // Fixed 16x16 grayscale layout + colored 4x4 grid. Uses simple normalized features; not semantic AI.
