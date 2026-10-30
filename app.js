@@ -187,6 +187,63 @@ $('snap').onclick=async()=>{if(!$('video').videoWidth)return;let c=document.crea
 products.forEach(p=>{let opt=document.createElement('option');opt.value=p.id;opt.textContent=p.name;$('learnSelect').append(opt)});$('learnButton').onclick=()=>$('learnFile').click();$('learnFile').onchange=async e=>{let f=e.target.files?.[0];if(f){try{let c=await canvasFromFile(f);let id=Number($('learnSelect').value);samples.push({id,f:features(c)});if(!save('miniSamples',samples)){samples.pop();$('learnNote').textContent='Хранилище устройства заполнено.'}else{$('learnNote').textContent='Фото для '+product(id).name+' добавлено ✓'}renderTrained()}catch(err){$('learnNote').textContent=err.message}}e.target.value=''};function renderTrained(){let el=$('trained');el.replaceChildren();let title=document.createElement('strong');title.textContent='Сохранённые образцы: '+samples.length;el.append(title);products.forEach(p=>{let n=samples.filter(s=>s.id===p.id).length;if(!n)return;let div=document.createElement('div');div.className='row item';let name=document.createElement('span');name.textContent=p.name+' — '+n+' фото';let btn=document.createElement('button');btn.className='btn secondary';btn.textContent='Удалить';btn.onclick=()=>{samples=samples.filter(s=>s.id!==p.id);save('miniSamples',samples);renderTrained()};div.append(name,btn);el.append(div)})}$('resetTraining').onclick=()=>{if(confirm('Удалить все обучающие образцы?')){samples=[];save('miniSamples',samples);renderTrained()}};renderCatalog();renderCart();renderTrained();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 
 
+
+// Bluetooth HID scanners type characters into the focused input and often send Enter.
+const barcodeInput=$('barcodeInput'),barcodeStatus=$('barcodeStatus');
+let barcodeMap=read('miniBarcodes',{}),currentBarcode='',matchedBarcodeId=null;
+const barcodeValid=code=>/^[0-9A-Za-z-]{4,64}$/.test(code);
+const barcodeNormalize=value=>String(value||'').trim();
+const barcodeProduct=$('barcodeProduct');
+products.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;barcodeProduct.append(o)});
+function clearBarcodeResult(){
+ matchedBarcodeId=null;$('barcodeFound').classList.add('hidden');$('barcodeUnknown').classList.add('hidden');
+}
+function lookupBarcode(){
+ const code=barcodeNormalize(barcodeInput.value);currentBarcode=code;clearBarcodeResult();
+ if(!barcodeValid(code)){barcodeStatus.textContent='Нужен штрихкод длиной от 4 до 64 символов. Попробуй ещё раз.';return;}
+ const id=barcodeMap[code],p=product(id);
+ if(p){
+  matchedBarcodeId=p.id;
+  $('barcodeName').textContent=p.name;$('barcodePrice').textContent=priceText(p);
+  $('barcodeFound').classList.remove('hidden');
+  barcodeStatus.textContent='✅ Код найден. Проверь товар и добавь в корзину.';
+ }else{
+  $('barcodeUnknown').classList.remove('hidden');
+  barcodeStatus.textContent='Этот штрихкод пока неизвестен. Выбери товар и привяжи его к коду (один раз).';
+ }
+}
+$('barcodeCheck').onclick=lookupBarcode;
+$('barcodeFocus').onclick=()=>{barcodeInput.focus();barcodeInput.select();barcodeStatus.textContent='🔫 Сканируй код — пикалка введёт цифры сюда.'};
+barcodeInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();lookupBarcode()}});
+$('barcodeBind').onclick=()=>{
+ const code=currentBarcode;
+ if(!barcodeValid(code)){barcodeStatus.textContent='Сначала считай штрихкод.';return;}
+ const p=product(barcodeProduct.value);
+ if(!p)return;
+ if(barcodeMap[code]!==undefined&&!confirm('Этот код уже привязан. Заменить товар?'))return;
+ const previous={...barcodeMap};barcodeMap[code]=p.id;
+ if(!save('miniBarcodes',barcodeMap)){barcodeMap=previous;barcodeStatus.textContent='Не получилось сохранить штрихкод.';return;}
+ lookupBarcode();
+};
+$('barcodeAdd').onclick=()=>{
+ if(matchedBarcodeId==null)return;
+ const p=product(matchedBarcodeId);
+ if(!p)return;
+ add(p.id);barcodeStatus.textContent='✅ '+p.name+' добавлен в корзину. Сканируй следующий код.';
+ barcodeInput.value='';clearBarcodeResult();barcodeInput.focus();
+};
+$('barcodeManage').onclick=()=>{
+ const panel=$('barcodeManagePanel');panel.classList.toggle('hidden');if(panel.classList.contains('hidden'))return;
+ panel.replaceChildren();const title=document.createElement('strong');title.textContent='Мои штрихкоды ('+Object.keys(barcodeMap).length+')';panel.append(title);
+ Object.entries(barcodeMap).forEach(([code,id])=>{
+  const p=product(id),line=document.createElement('div');line.className='row item';
+  const t=document.createElement('span');t.textContent=code+' — '+(p?.name||'Неизвестный товар');
+  const b=document.createElement('button');b.textContent='Удалить';b.className='btn secondary';
+  b.onclick=()=>{if(confirm('Удалить привязку кода '+code+'?')){delete barcodeMap[code];save('miniBarcodes',barcodeMap);$('barcodeManage').click()}};
+  line.append(t,b);panel.append(line);
+ });
+};
+
 // Offline store commands and optional secure cloud AI. No API keys are placed in this app.
 let endpoint=read('miniEndpoint',''),voiceOn=read('miniVoice',false),recognition=null;
 const safeEndpoint=(s)=>{try{let u=new URL(s.trim());return u.protocol==='https:'?u.href.replace(/\/$/,''):''}catch{return ''}};
@@ -261,7 +318,7 @@ $('searchInternet').onclick=async()=>{
 };
 $('learnSelect').onchange=()=>{$('internetResults').replaceChildren();$('internetStatus').textContent='';};
 $('exportSave').onclick=()=>{
- const data={format:'mini-store-save',version:3,date:new Date().toISOString(),samples,cart,cash:$('cash').value,voiceOn};
+ const data={format:'mini-store-save',version:3,date:new Date().toISOString(),samples,cart,barcodes:barcodeMap,cash:$('cash').value,voiceOn};
  const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download='mini-store-save.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);$('backupStatus').textContent='Файл сохранения готов. Сохрани его в «Файлы» на iPhone или iPad.';
 };
@@ -276,7 +333,7 @@ $('importSaveFile').onchange=async e=>{
   const newCart={};for(const [key,value] of Object.entries(d.cart)){if(!product(key)||!Number.isInteger(value)||value<0||value>999)throw Error('Неверные данные корзины');if(value)newCart[key]=value;}
   if(!confirm('Заменить текущие данные данными из файла?'))return;
   if(!save('miniSamples',d.samples))throw Error('Не хватает памяти для образцов');
-  samples=d.samples;cart=newCart;save('miniCart',cart);$('cash').value=String(d.cash||'');save('miniCash',$('cash').value);
+  samples=d.samples;cart=newCart;if(d.barcodes&&typeof d.barcodes==='object'&&!Array.isArray(d.barcodes)){const safe={};for(const [code,id] of Object.entries(d.barcodes)){if(barcodeValid(code)&&product(id))safe[code]=Number(id);}barcodeMap=safe;save('miniBarcodes',barcodeMap);}save('miniCart',cart);$('cash').value=String(d.cash||'');save('miniCash',$('cash').value);
   renderTrained();renderCart();$('backupStatus').textContent='Сохранение восстановлено: '+samples.length+' образцов ✓';
  }catch(err){$('backupStatus').textContent='Ошибка: '+err.message}finally{e.target.value=''}
 };
