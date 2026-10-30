@@ -191,6 +191,23 @@ products.forEach(p=>{let opt=document.createElement('option');opt.value=p.id;opt
 // Bluetooth HID scanners type characters into the focused input and often send Enter.
 const barcodeInput=$('barcodeInput'),barcodeStatus=$('barcodeStatus');
 let barcodeMap=read('miniBarcodes',{}),currentBarcode='',matchedBarcodeId=null;
+// Built-in demo codes printed on Mini Store label sheet.
+const builtInBarcodes={
+ '100014500001':'iPhone 14 Pro Max',
+ '100014000002':'iPad Air',
+ '100009000003':'AirPods Pro',
+ '100012000004':'Apple Watch SE',
+ '100020000005':'MacBook Pro',
+ '100003000006':'Power Adapter',
+ '100090000007':'iPhone Duo',
+ '100009000008':'iPhone 12'
+};
+for(const [code,name] of Object.entries(builtInBarcodes)){
+ const p=products.find(p=>p.name===name);
+ if(p&&barcodeMap[code]===undefined)barcodeMap[code]=p.id;
+}
+save('miniBarcodes',barcodeMap);
+
 const barcodeValid=code=>/^[0-9A-Za-z-]{4,64}$/.test(code);
 const barcodeNormalize=value=>String(value||'').trim();
 const barcodeProduct=$('barcodeProduct');
