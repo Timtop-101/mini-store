@@ -7,11 +7,12 @@ for(const name of extraProducts)if(!products.some(p=>p.name.toLowerCase()===name
 const priceText=p=>p.price==null?'Цена не назначена':fmt(p.price);
 
 // Game prices (not Apple's official prices). Keep every item in 1,000–90,000 ₽.
-const excludedNames=new Set(['AirTag Loop','iPhone Duo','iPhone 18 Pro Max','iPhone 18 Pro','AirPods 5','AirPods Max 2']);
+const excludedNames=new Set(['AirTag Loop','Smart Folio','iPhone 18 Pro Max','iPhone 18 Pro','AirPods 5','AirPods Max 2']);
 for(let i=products.length-1;i>=0;i--)if(excludedNames.has(products[i].name))products.splice(i,1);
 // Stable IDs matter for saved carts and training, so do not renumber existing products.
 const allById=new Map(products.map(p=>[p.id,p]));
 function gamePrice(p){
+ if(p.name==='iPhone Duo')return 90000;
  if(p.price!=null)return Math.max(1000,Math.min(90000,p.price));
  if(/^iPhone /i.test(p.name)){
    const n=Number((p.name.match(/iPhone\s+(\d+)/i)||[])[1])||0;
@@ -26,7 +27,7 @@ function gamePrice(p){
  if(/Watch/i.test(p.name))return 15000;
  return 3000;
 }
-products.forEach(p=>{p.price=gamePrice(p);if(p.hint?.includes('Цена не назначена'))p.hint='Игровая цена · Фото может отличаться от модели'});
+products.forEach(p=>{if(p.name==='iPhone Duo'){p.img='iphone-duo.svg';p.hint='Складной iPhone · Игровая цена';}p.price=gamePrice(p);if(p.hint?.includes('Цена не назначена'))p.hint='Игровая цена · Фото может отличаться от модели'});
 // Only show real Commons photos when the exact iPhone model is named in metadata.
 // Other products keep their existing illustrations until a verified photo exists.
 const photoLookupCache=new Map();
